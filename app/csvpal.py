@@ -26,6 +26,8 @@ Options:
 ##==============================================================#
 
 import csv
+import os
+import sys
 
 from docopt import docopt
 
@@ -42,23 +44,45 @@ __version__ = "csvpal 0.1.0-alpha"
 def make_keep(kfile):
     keep = []
     for line in open(kfile).readlines():
-        keep.append(line.strip("\n"))
+        # Prevent commented and blank lines from being added to keep list.
+        if not line.startswith(r"//") and line.strip():
+            keep.append(line.strip("\n"))
     return keep
 
 def handle_csv(ipath, opath, sort=False, keep=[]):
     """Handles the CSV logic; reads the input CSV file, performs the requested
     operations, then writes the output CSV file.
+    **Params**:
+      - ipath (str) - Path of the input file.
+      - opath (str) - Path of the output file.
+      - sort (bool) - If true, columns will be sorted in the output file.
+      - keep (list) - List of input file columns that will be kept in the
+        output file. If empty, all columns will be kept.
     """
+    if not os.path.exists(ipath):
+        sys.exit("ERROR: Input file `%s` not found!" % (ipath))
     rdr = csv.DictReader(open(ipath, "rb"))
     if [] == keep:
         # If no keep columns are specified, all columns will be kept.
         keep = rdr.fieldnames
+
+    # Sort if requested.
     if sort:
         keep = sorted(keep)
-    wtr = csv.writer(open(opath, "wb"), keep)
-    wtr.writerow(keep)
+
+    # Check if any of the keep columns are invalid; keep only common values.
+    ckeep = []
+    for k in keep:
+        if k not in rdr.fieldnames:
+            print "WARNING: Column `%s` not found in original CSV file, will be ignored in output." % (k)
+        else:
+            ckeep.append(k)
+
+    # Write output file.
+    wtr = csv.writer(open(opath, "wb"), ckeep)
+    wtr.writerow(ckeep)
     for row in rdr:
-        wtr.writerow([row[k] for k in keep])
+        wtr.writerow([row[k] for k in ckeep])
 
 def main():
     """Handles the main application logic."""
